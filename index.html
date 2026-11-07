@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SOUND HUNTER 3D: PETUALANGAN DUNIA BUNYI</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- HTML2Canvas untuk fitur Screenshot -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #FBBF24; /* Kuning Sonic */
+            --bg-dark: #1E1B4B; /* Navy Gelap */
+            --accent: #8B5CF6; /* Ungu */
+            --text-main: #F3F4F6;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-dark);
+            font-family: 'Nunito', sans-serif;
+            touch-action: none; /* Mencegah pull-to-refresh di mobile */
+            user-select: none;
+        }
+
+        h1, h2, h3, .font-heading {
+            font-family: 'Fredoka One', cursive;
+        }
+
+        #game-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        /* UI Overlays */
+        .screen-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(30, 27, 75, 0.9);
+            backdrop-filter: blur(5px);
+            transition: opacity 0.3s ease;
+        }
+
+        .hidden {
+            display: none !important;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Buttons */
+        .btn {
+            background: linear-gradient(135deg, #F59E0B, #D97706);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 9999px;
+            font-family: 'Fredoka One', cursive;
+            font-size: 1.2rem;
+            border: 4px solid #FEF3C7;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(245, 158, 11, 0.5);
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-blue { background: linear-gradient(135deg, #3B82F6, #2563EB); border-color: #DBEAFE; box-shadow: 0 4px 6px rgba(0,0,0,0.3), 0 0 15px rgba(59, 130, 246, 0.5);}
+        .btn-green { background: linear-gradient(135deg, #10B981, #059669); border-color: #D1FAE5; box-shadow: 0 4px 6px rgba(0,0,0,0.3), 0 0 15px rgba(16, 185, 129, 0.5);}
+        .btn-red { background: linear-gradient(135deg, #EF4444, #DC2626); border-color: #FEE2E2; box-shadow: 0 4px 6px rgba(0,0,0,0.3), 0 0 15px rgba(239, 68, 68, 0.5);}
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: max(10px, env(safe-area-inset-top));
+            left: max(10px, env(safe-area-inset-left));
+            right: max(10px, env(safe-area-inset-right));
+            z-index: 5;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .hud-panel {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: 2px solid rgba(255,255,255,0.3);
+            color: white;
+            font-weight: bold;
+            font-size: 1.25rem; /* Diperbesar untuk PID */
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            pointer-events: auto; /* Memastikan tombol di dalam HUD bisa diklik */
+        }
+
+        .hud-icon { width: 32px; height: 32px; }
+
+        /* D-Pad untuk Layar Sentuh / PID */
+        #dpad-zone {
+            position: absolute;
+            bottom: max(40px, env(safe-area-inset-bottom));
+            left: max(40px, env(safe-area-inset-left));
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            transform-origin: bottom left;
+            transform: scale(1);
+        }
+
+        .dpad-row {
+            display: flex;
+            gap: 15px;
+        }
+
+        .dpad-btn {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 4px solid rgba(255, 255, 255, 0.6);
+            border-radius: 20px;
+            color: white;
+            font-size: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            transition: background 0.1s, transform 0.1s;
+            cursor: pointer;
+        }
+
+        .dpad-btn:active {
+            background: rgba(255, 255, 255, 0.5);
+            transform: scale(0.9);
+        }
+
+        /* Action Buttons Mobile */
+        #mobile-actions {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 5;
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Quiz Modal */
+        #quiz-modal .modal-content {
+            background: white;
+            color: #333;
+            border-radius: 20px;
+            padding: 24px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border: 4px solid var(--primary);
+            text-align: center;
+        }
+
+        .quiz-option {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            background: #F3F4F6;
+            border: 2px solid #D1D5DB;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+        .quiz-option:hover { background: #E5E7EB; border-color: #9CA3AF; }
+        .quiz-option.correct { background: #D1FAE5; border-color: #10B981; color: #065F46; }
+        .quiz-option.wrong { background: #FEE2E2; border-color: #EF4444; color: #991B1B; }
+
+        /* Material Content */
+        .materi-card {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        /* Animations */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+
+        /* Progress Bar */
+        #level-progress-container {
+            width: 100%;
+            height: 10px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 5px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+        #level-progress {
+            height: 100%;
+            width: 0%;
+            background: #10B981;
+            transition: width 0.3s;
+        }
+
+        /* Responsif untuk Mobile & Tablet */
+        @media (max-width: 1024px) {
+            #dpad-zone {
+                transform: scale(0.85);
+                bottom: max(30px, env(safe-area-inset-bottom));
+                left: max(30px, env(safe-area-inset-left));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .hud-panel {
+                font-size: 0.9rem;
+                padding: 6px 12px;
+                gap: 5px;
+            }
+            #dpad-zone {
+                /* D-Pad dipindah ke Tengah Kanan layar untuk handphone */
+                top: 50%; 
+                right: max(20px, env(safe-area-inset-right));
+                left: auto;
+                bottom: auto;
+                transform: translateY(-50%) scale(0.9); /* Diperbesar dari sebelumnya */
+                transform-origin: center right;
+                gap: 12px;
+            }
+            .dpad-row {
+                gap: 12px;
+            }
+            .dpad-btn {
+                width: 75px; /* Tombol lebih besar */
+                height: 75px;
+                font-size: 35px;
+            }
+            /* Menyesuaikan ukuran modal saat di mobile */
+            #quiz-modal .modal-content {
+                padding: 20px 15px;
+            }
+            #quiz-question {
+                font-size: 1.2rem;
+                margin-bottom: 15px;
+            }
+            .quiz-option {
+                padding: 10px;
+                font-size: 1rem;
+            }
+        }
+
+        /* Responsif khusus layar HP landscape (mendatar) */
+        @media (max-height: 500px) {
+            #dpad-zone {
+                top: 50%;
+                right: max(20px, env(safe-area-inset-right));
+                left: auto;
+                bottom: auto;
+                transform: translateY(-50%) scale(0.7);
+                transform-origin: center right;
+            }
+            .hud-panel {
+                font-size: 0.8rem;
+                padding: 4px 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Game Container -->
+    <div id="game-container"></div>
+
+    <!-- Heads Up Display (HUD) -->
+    <div id="hud" class="hidden">
+        <div class="flex flex-col gap-3">
+            <div class="hud-panel">
+                <span class="text-yellow-400">⭐ Skor:</span> <span id="score-display">0</span>
+            </div>
+            <div class="hud-panel">
+                <span>🪙 Koin:</span> <span id="coin-display">0/20</span>
+            </div>
+        </div>
+        <div class="flex flex-col gap-3 items-end">
+            <div class="flex gap-2">
+                <div class="hud-panel" style="background: rgba(30, 64, 175, 0.8); border-color: #93C5FD; cursor: pointer;" onclick="toggleFullScreen()" title="Layar Penuh">
+                    📺 Full Screen
+                </div>
+                <div class="hud-panel" style="background: rgba(220, 38, 38, 0.8); border-color: #FCA5A5; cursor: pointer;" onclick="exitGame()" title="Keluar ke Menu">
+                    🚪 Keluar
+                </div>
+            </div>
+            <div class="hud-panel">
+                <span class="text-red-400">❤️ Nyawa:</span> <span id="lives-display">3</span>
+            </div>
+            <div class="hud-panel">
+                <span>📍 Level:</span> <span id="level-display">1</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Directional Pad (D-Pad) for PID & Touch -->
+    <div id="dpad-zone" class="hidden">
+        <div class="dpad-btn" id="btn-up">▲</div>
+        <div class="dpad-row">
+            <div class="dpad-btn" id="btn-left">◄</div>
+            <div class="dpad-btn" id="btn-down">▼</div>
+            <div class="dpad-btn" id="btn-right">►</div>
+        </div>
+    </div>
+
+    <!-- SCREENS -->
+    <!-- 1. Main Menu -->
+    <div id="screen-main" class="screen-overlay">
+        <div class="flex flex-col md:flex-row items-center justify-center w-full max-w-6xl p-6 md:p-12 gap-8 md:gap-16">
+            <!-- Kolom Kiri: Judul dan Form -->
+            <div class="flex-1 flex flex-col items-center md:items-start text-center md:text-left">
+                <h1 class="text-5xl md:text-6xl lg:text-7xl text-yellow-400 mb-2 font-heading drop-shadow-lg animate-float" style="line-height: 1.1;">SOUND HUNTER 3D</h1>
+                <h2 class="text-xl md:text-2xl lg:text-3xl text-white mb-6 drop-shadow-md">PETUALANGAN DUNIA BUNYI</h2>
+                
+                <div class="bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20 mb-4 flex flex-col items-center md:items-start w-full max-w-sm">
+                    <h3 class="text-yellow-400 font-bold mb-4 w-full text-center md:text-left text-lg">📝 DATA PEMAIN</h3>
+                    <input type="text" id="input-nama" placeholder="Masukkan Nama Anda..." class="w-full mb-3 p-3 rounded-xl text-black font-bold border-2 border-transparent focus:border-yellow-400 outline-none text-center md:text-left">
+                    <input type="text" id="input-kelas" placeholder="Masukkan Kelas..." class="w-full mb-2 p-3 rounded-xl text-black font-bold border-2 border-transparent focus:border-yellow-400 outline-none text-center md:text-left">
+                    <p id="login-error" class="text-red-400 font-bold text-sm hidden mb-2 text-center md:text-left w-full">Nama dan Kelas wajib diisi!</p>
+                </div>
+            </div>
+
+            <!-- Kolom Kanan: Tombol Navigasi -->
+            <div class="flex-1 flex flex-col items-center md:items-stretch justify-center w-full max-w-sm border-t-2 md:border-t-0 md:border-l-2 border-white/20 pt-6 md:pt-0 md:pl-12">
+                <div class="flex flex-col gap-4 w-full">
+                    <button class="btn py-4 text-xl shadow-[0_0_20px_rgba(245,158,11,0.6)]" onclick="startGame(1)">▶ MULAI BERMAIN</button>
+                    <button class="btn btn-blue py-3" onclick="showScreen('screen-materi')">📚 MATERI IPAS</button>
+                    <button class="btn btn-green py-3" onclick="showScreen('screen-petunjuk')">❓ PETUNJUK</button>
+                </div>
+                
+                <p class="text-gray-400 mt-6 text-sm text-center font-bold tracking-widest bg-black/30 p-2 rounded-lg">MATERI IPAS KELAS 5 SD</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Petunjuk -->
+    <div id="screen-petunjuk" class="screen-overlay hidden">
+        <div class="bg-white/10 backdrop-blur-md p-8 rounded-2xl border border-white/20 max-w-2xl text-white w-11/12 max-h-[80vh] overflow-y-auto">
+            <h2 class="text-3xl text-yellow-400 mb-4 font-heading text-center">CARA BERMAIN</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <h3 class="text-xl text-blue-300 font-bold mb-2">Kontrol</h3>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li><b>Gerak:</b> Keyboard Panah/WASD atau Virtual Joystick.</li>
+                        <li><b>Kamera (View):</b> Klik/Sentuh area kosong lalu geser untuk memutar pandangan. Scroll untuk Zoom-in/out.</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-xl text-blue-300 font-bold mb-2">Misi Kamu</h3>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>Kumpulkan semua <b>Koin Energi Bunyi</b> (warna emas).</li>
+                        <li>Sentuh <b>Kotak Tanya (?)</b> untuk menjawab Kuis IPAS.</li>
+                        <li>Hindari <b>Monster Suara</b> yang mengejarmu!</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="materi-card bg-black/30">
+                <h3 class="text-yellow-400 font-bold mb-2">Karakter</h3>
+                <div class="flex gap-4 items-center mb-2">
+                    <div class="w-8 h-8 bg-yellow-400 rounded-full border-2 border-white"></div>
+                    <span><b>Sonic</b>: Karakter utama kamu.</span>
+                </div>
+                <div class="flex gap-4 items-center">
+                    <div class="flex gap-1">
+                        <div class="w-6 h-6 bg-red-500 rounded-full"></div>
+                        <div class="w-6 h-6 bg-blue-500 rounded-full"></div>
+                        <div class="w-6 h-6 bg-green-500 rounded-full"></div>
+                    </div>
+                    <span><b>Monster</b>: Gema, Getaran, dan Gelombang. Jangan sampai tersentuh!</span>
+                </div>
+            </div>
+
+            <div class="text-center mt-6">
+                <button class="btn btn-blue" onclick="showScreen('screen-main')">KEMBALI</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Materi Pembelajaran -->
+    <div id="screen-materi" class="screen-overlay hidden">
+        <div class="bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20 max-w-4xl text-white w-11/12 max-h-[90vh] overflow-y-auto">
+            <h2 class="text-3xl text-yellow-400 mb-6 font-heading text-center sticky top-0 bg-[#1E1B4B]/90 p-2 rounded z-10">MATERI IPAS: BUNYI & TELINGA</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Bagian A: Sifat Bunyi -->
+                <div>
+                    <h3 class="text-2xl text-blue-300 font-bold mb-3 border-b border-blue-300 pb-1">A. Sifat-sifat Bunyi</h3>
+                    
+                    <div class="materi-card">
+                        <b class="text-yellow-300">1. Bunyi berasal dari benda yang bergetar.</b><br>
+                        Contoh: Senar gitar yang dipetik, pita suara saat kita bicara.
+                    </div>
+                    <div class="materi-card">
+                        <b class="text-yellow-300">2. Bunyi membutuhkan media untuk merambat.</b><br>
+                        Bunyi dapat merambat melalui:
+                        <ul class="list-disc pl-5 mt-1">
+                            <li><b>Benda Padat:</b> Contoh: Suara kereta terdengar di rel baja. Rambatan paling cepat.</li>
+                            <li><b>Benda Cair:</b> Contoh: Suara lumba-lumba di laut, suara batu diadu dalam air.</li>
+                            <li><b>Gas (Udara):</b> Contoh: Kita bisa mendengar suara teman yang berbicara.</li>
+                        </ul>
+                        <i>Catatan: Bunyi <b>TIDAK BISA</b> merambat di ruang hampa udara (seperti di luar angkasa).</i>
+                    </div>
+                    <div class="materi-card">
+                        <b class="text-yellow-300">3. Bunyi dapat dipantulkan.</b><br>
+                        Jika mengenai benda keras (kaca, dinding batu). Contoh: Gaung (bunyi pantul yang mengganggu) dan Gema (bunyi pantul terdengar jelas setelah bunyi asli).
+                    </div>
+                    <div class="materi-card">
+                        <b class="text-yellow-300">4. Bunyi dapat diserap.</b><br>
+                        Oleh benda lunak (karpet, busa, kapas, wol). Digunakan di bioskop atau studio musik agar tidak bergema.
+                    </div>
+                </div>
+
+                <!-- Bagian B: Telinga -->
+                <div>
+                    <h3 class="text-2xl text-purple-300 font-bold mb-3 border-b border-purple-300 pb-1">B. Bagian & Fungsi Telinga</h3>
+                    
+                    <div class="materi-card">
+                        <b class="text-purple-300">Telinga Luar</b>
+                        <ul class="list-disc pl-5 mt-1 text-sm">
+                            <li><b>Daun Telinga:</b> Menangkap dan mengumpulkan gelombang bunyi.</li>
+                            <li><b>Saluran Telinga:</b> Meneruskan bunyi ke gendang telinga. Menghasilkan kotoran untuk mencegah debu/serangga masuk.</li>
+                        </ul>
+                    </div>
+                    <div class="materi-card">
+                        <b class="text-purple-300">Telinga Tengah</b>
+                        <ul class="list-disc pl-5 mt-1 text-sm">
+                            <li><b>Gendang Telinga (Membran Timpani):</b> Selaput tipis yang akan <i>bergetar</i> ketika menerima gelombang bunyi.</li>
+                            <li><b>Tulang Pendengaran (Martil, Landasan, Sanggurdi):</b> Memperkuat getaran dan meneruskannya ke telinga dalam.</li>
+                            <li><b>Saluran Eustachius:</b> Menghubungkan telinga tengah dengan rongga mulut, menyeimbangkan tekanan udara.</li>
+                        </ul>
+                    </div>
+                    <div class="materi-card">
+                        <b class="text-purple-300">Telinga Dalam</b>
+                        <ul class="list-disc pl-5 mt-1 text-sm">
+                            <li><b>Koklea (Rumah Siput):</b> Mengubah getaran bunyi menjadi sinyal/impuls saraf. Berisi cairan dan sel rambut peka rangsang.</li>
+                            <li><b>Saraf Pendengaran:</b> Mengirim sinyal dari koklea ke otak untuk diterjemahkan sebagai suara.</li>
+                            <li><b>Saluran Setengah Lingkaran:</b> Alat keseimbangan tubuh.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mt-6 sticky bottom-0 bg-[#1E1B4B]/90 p-2 rounded z-10">
+                <button class="btn btn-blue" onclick="showScreen('screen-main')">KEMBALI KE MENU</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Quiz Modal -->
+    <div id="quiz-modal" class="screen-overlay hidden" style="background: rgba(0,0,0,0.8);">
+        <div class="modal-content relative">
+            <div id="quiz-status" class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-black px-6 py-2 rounded-full font-bold text-lg shadow-md">KUIS IPAS</div>
+            
+            <h3 id="quiz-question" class="text-2xl font-bold mb-6 mt-4">Pertanyaan akan muncul di sini?</h3>
+            
+            <div id="quiz-options" class="flex flex-col gap-3 mb-6 text-lg">
+                <!-- Buttons injected via JS -->
+            </div>
+
+            <div id="quiz-feedback" class="hidden rounded-lg p-4 mb-6 text-lg font-bold">
+                <!-- Feedback injected via JS -->
+            </div>
+
+            <button id="quiz-continue-btn" class="btn w-full hidden text-xl py-4" onclick="closeQuiz()">LANJUTKAN</button>
+        </div>
+    </div>
+
+    <!-- 5. Level Transition / Message -->
+    <div id="message-screen" class="screen-overlay hidden">
+        <h2 id="message-title" class="text-5xl text-yellow-400 font-heading mb-4 text-center">LEVEL SELESAI!</h2>
+        <p id="message-desc" class="text-xl text-white mb-8 text-center">Bagus sekali! Bersiap untuk level selanjutnya.</p>
+        <button id="message-btn" class="btn" onclick="nextLevelAction()">LANJUT</button>
+    </div>
+
+    <!-- 6. Game Over / Result Screen -->
+    <div id="result-screen" class="screen-overlay hidden">
+        <div id="score-card" class="bg-[#1E1B4B] p-8 rounded-2xl border-4 border-yellow-400 max-w-md w-11/12 text-center text-white relative shadow-[0_0_30px_rgba(251,191,36,0.3)]">
+            <h2 id="result-title" class="text-4xl text-yellow-400 font-heading mb-2">PERMAINAN SELESAI</h2>
+            
+            <div id="stars-container" class="flex justify-center gap-2 text-4xl mb-4">
+                ⭐ ⭐ ⭐
+            </div>
+
+            <div class="bg-black/50 rounded-xl p-5 mb-4 text-left border border-white/10">
+                <div class="text-center border-b border-white/20 pb-3 mb-3">
+                    <p class="text-xl font-bold text-blue-300" id="result-name">Nama: -</p>
+                    <p class="text-md text-purple-300" id="result-class">Kelas: -</p>
+                </div>
+                <div class="flex justify-between mb-2 text-lg"><span>Total Skor:</span> <b id="final-score" class="text-yellow-400 text-2xl">0</b></div>
+                <div class="flex justify-between mb-2"><span>Koin Terkumpul:</span> <b id="final-coins">0</b></div>
+                <div class="flex justify-between mb-2"><span>Kuis Benar:</span> <b id="final-correct" class="text-green-400">0</b></div>
+                <div class="flex justify-between"><span>Kuis Salah:</span> <b id="final-wrong" class="text-red-400">0</b></div>
+            </div>
+
+            <p id="result-message" class="text-lg mb-6 italic">Teruslah belajar dan berlatih!</p>
+
+            <div class="flex flex-col gap-3 justify-center">
+                <button id="btn-screenshot" class="btn btn-green w-full" onclick="takeScreenshot()">📸 SIMPAN & BAGIKAN WA</button>
+                <div class="flex gap-3">
+                    <button class="btn btn-blue flex-1 text-sm py-3" onclick="showScreen('screen-main'); cleanupGame();">MENU UTAMA</button>
+                    <button class="btn flex-1 text-sm py-3" onclick="startGame(1)">MAIN LAGI</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+/**
+ * DATA & KONFIGURASI
+ */
+const GAME_CONFIG = {
+    coinScore: 10,
+    quizCorrectScore: 100,
+    levelBonus: 500,
+    startLives: 3,
+    playerSpeed: 0.12,
+    enemySpeed: 0.05,
+    colors: {
+        bgVoid: 0x0F172A, // Background luar arena (Gelap)
+        player: 0xFDE047, // Pemain kuning terang
+        coin: 0xFBBF24, // Koin emas
+        qBox: 0xD946EF, // Kotak pertanyaan fuchsia
+        enemy1: 0xEF4444, // Merah (Gema)
+        enemy2: 0x3B82F6, // Biru (Getaran)
+        enemy3: 0x10B981, // Hijau (Gelombang)
+    }
+};
+
+// 10 Tema Labirin yang akan diacak setiap level
+const GAME_THEMES = [
+    { name: "Tanaman (Hedge Maze)", floor: 0xE7E5E4, wallTop: 0x4ADE80, wallSide: 0x166534 }, 
+    { name: "Retro Arcade", floor: 0x111827, wallTop: 0x3B82F6, wallSide: 0x1E3A8A },
+    { name: "Gurun Pasir", floor: 0xFDE68A, wallTop: 0xD97706, wallSide: 0x92400E }, 
+    { name: "Salju Kutub", floor: 0xF3F4F6, wallTop: 0xFFFFFF, wallSide: 0x93C5FD }, 
+    { name: "Candi Misterius", floor: 0x9CA3AF, wallTop: 0x6B7280, wallSide: 0x374151 },
+    { name: "Gunung Berapi", floor: 0x1F2937, wallTop: 0xEF4444, wallSide: 0x7F1D1D }, 
+    { name: "Cyberpunk", floor: 0x171717, wallTop: 0x06B6D4, wallSide: 0x4C1D95 }, 
+    { name: "Dunia Permen", floor: 0xFBCFE8, wallTop: 0xFDE047, wallSide: 0xF472B6 }, 
+    { name: "Bawah Laut", floor: 0x2DD4BF, wallTop: 0x38BDF8, wallSide: 0x0369A1 },
+    { name: "Luar Angkasa", floor: 0x0F172A, wallTop: 0xA78BFA, wallSide: 0x312E81 } 
+];
+
+// Database Soal IPAS Kelas 5
+const QUIZ_POOL = [
+    // --- SIFAT BUNYI ---
+    { q: "Apa yang menyebabkan suatu benda dapat menghasilkan bunyi?", o: ["Benda tersebut bergetar", "Benda tersebut berubah warna", "Benda tersebut memuai", "Benda tersebut bergerak pindah tempat"], a: 0, exp: "Syarat utama terjadinya bunyi adalah adanya getaran pada suatu benda (sumber bunyi)." },
+    { q: "Bunyi dapat merambat paling cepat melalui benda...", o: ["Gas / Udara", "Cair (Air)", "Padat (Besi/Kayu)", "Ruang hampa"], a: 2, exp: "Kerapatan partikel pada benda padat sangat tinggi, sehingga bunyi paling cepat merambat melalui benda padat." },
+    { q: "Mengapa astronot di luar angkasa tidak bisa saling mendengar suara secara langsung?", o: ["Karena memakai helm yang tebal", "Karena di luar angkasa tidak ada udara (ruang hampa)", "Karena suhunya sangat dingin", "Karena gravitasi tidak ada"], a: 1, exp: "Bunyi membutuhkan media (padat, cair, gas) untuk merambat. Di luar angkasa hampa udara, sehingga bunyi tidak bisa merambat." },
+    { q: "Peristiwa pantulan bunyi yang terdengar LENGKAP setelah bunyi asli selesai disebut...", o: ["Gaung", "Kerdam", "Resonansi", "Gema"], a: 3, exp: "Gema terjadi jika jarak sumber bunyi dan dinding pemantul cukup jauh (misal di tebing), sehingga bunyi pantul terdengar setelah bunyi asli." },
+    { q: "Benda-benda berikut yang dapat digunakan untuk MENYERAP bunyi di studio musik adalah...", o: ["Kaca dan Seng", "Keramik dan Besi", "Karpet dan Busa", "Air dan Batu"], a: 2, exp: "Benda dengan permukaan lunak/empuk seperti busa, karpet, dan kain dapat menyerap bunyi untuk mencegah gaung." },
+    { q: "Gitar menghasilkan bunyi dengan cara...", o: ["Dipukul", "Ditiup", "Dipetik senarnya", "Digesek"], a: 2, exp: "Senar gitar yang dipetik akan bergetar dan menghasilkan bunyi." },
+    { q: "Suara guntur sering terdengar setelah kilat terlihat. Hal ini membuktikan bahwa...", o: ["Cahaya merambat lebih cepat dari bunyi", "Bunyi merambat lebih cepat dari cahaya", "Bunyi dan cahaya berasal dari tempat berbeda", "Mata lebih peka dari telinga"], a: 0, exp: "Kecepatan cahaya (300.000 km/s) jauh lebih cepat daripada kecepatan bunyi di udara (sekitar 340 m/s)." },
+    
+    // --- BAGIAN TELINGA ---
+    { q: "Bagian telinga yang berfungsi menangkap dan mengumpulkan gelombang bunyi adalah...", o: ["Koklea", "Daun telinga", "Gendang telinga", "Tulang martil"], a: 1, exp: "Daun telinga (telinga luar) bentuknya seperti corong untuk mengumpulkan gelombang bunyi dari lingkungan." },
+    { q: "Selaput tipis yang akan bergetar saat menerima gelombang bunyi disebut...", o: ["Rumah siput", "Saraf pendengaran", "Membran timpani (Gendang telinga)", "Saluran Eustachius"], a: 2, exp: "Gendang telinga adalah pembatas telinga luar dan tengah yang sangat sensitif terhadap tekanan gelombang bunyi." },
+    { q: "Tiga tulang pendengaran pada telinga tengah secara berurutan adalah...", o: ["Martil, Landasan, Sanggurdi", "Landasan, Sanggurdi, Koklea", "Sanggurdi, Martil, Eustachius", "Martil, Sanggurdi, Landasan"], a: 0, exp: "Tulang pendengaran (Osikel) terdiri dari Malleus (Martil), Incus (Landasan), dan Stapes (Sanggurdi)." },
+    { q: "Bagian telinga dalam yang bentuknya melingkar dan berfungsi mengubah getaran menjadi impuls saraf adalah...", o: ["Saluran setengah lingkaran", "Saluran Eustachius", "Daun telinga", "Koklea (Rumah Siput)"], a: 3, exp: "Koklea berisi cairan dan sel rambut reseptor yang mengubah getaran mekanis menjadi sinyal listrik saraf." },
+    { q: "Fungsi saluran setengah lingkaran pada telinga adalah untuk...", o: ["Memperkuat suara", "Menjaga keseimbangan tubuh", "Menghubungkan ke tenggorokan", "Menghasilkan kotoran telinga"], a: 1, exp: "Saluran setengah lingkaran tidak untuk mendengar, melainkan mendeteksi pergerakan kepala untuk keseimbangan." },
+    { q: "Saluran yang menghubungkan telinga tengah dengan rongga mulut/tenggorokan adalah...", o: ["Saluran telinga", "Saraf auditori", "Saluran Eustachius", "Saluran koklea"], a: 2, exp: "Saluran Eustachius berfungsi menyeimbangkan tekanan udara di telinga luar dan telinga tengah." },
+    { q: "Urutan perjalanan bunyi dari luar hingga ke otak yang benar adalah...", o: ["Daun telinga - Koklea - Gendang telinga - Otak", "Daun telinga - Gendang telinga - Tulang pendengaran - Koklea - Saraf - Otak", "Gendang telinga - Daun telinga - Saraf - Otak", "Daun telinga - Saraf - Gendang telinga - Tulang pendengaran"], a: 1, exp: "Bunyi ditangkap daun telinga -> menggetarkan gendang -> diperkuat tulang -> diubah jadi saraf di koklea -> dikirim ke otak." },
+    { q: "Kotoran telinga (serumen) yang dihasilkan di saluran telinga sebenarnya berguna untuk...", o: ["Membuat telinga gatal", "Mencegah masuknya debu, air, dan serangga", "Membantu memperbesar suara", "Merusak gendang telinga"], a: 1, exp: "Kotoran telinga memiliki fungsi perlindungan alami menangkap kotoran agar tidak masuk lebih dalam." }
+];
+
+// Map Legends: 
+// 0: Empty, 1: Wall (Tanaman), 2: Coin, 3: Quiz Box, 4: Enemy (Red), 5: Player Start, 6: Enemy (Blue)
+// Maps modified to be more open (tidak terkunci jalurnya)
+const LEVELS = [
+    {
+        id: 1,
+        title: "LABIRIN SIFAT BUNYI",
+        map: [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,5,2,2,2,2,2,2,2,2,2,2,3,2,1],
+            [1,2,1,2,1,1,2,1,1,2,1,1,2,2,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,2,3,2,2,1,2,2,3,2,1,2,1],
+            [1,2,2,2,4,2,1,1,1,2,2,2,2,2,1],
+            [1,2,1,2,2,2,2,2,2,2,2,2,1,2,1],
+            [1,3,1,2,1,1,2,2,1,1,2,1,1,2,1],
+            [1,2,2,2,2,2,2,4,2,2,2,2,2,2,1],
+            [1,2,1,2,1,1,2,1,2,1,1,2,3,2,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ]
+    },
+    {
+        id: 2,
+        title: "PETUALANGAN GELOMBANG",
+        map: [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,5,2,2,2,2,3,2,2,2,2,2,2,2,2,3,1],
+            [1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1],
+            [1,2,2,2,2,2,2,2,4,2,2,2,2,2,2,2,1],
+            [1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1],
+            [1,3,2,2,2,2,6,2,2,2,6,2,2,2,2,3,1],
+            [1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1],
+            [1,2,2,2,4,2,2,2,3,2,2,2,2,4,2,2,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ]
+    },
+    {
+        id: 3,
+        title: "MISTERI DUNIA TELINGA",
+        map: [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,5,2,2,2,2,2,2,3,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,2,1,1,2,1,1,2,1,1,2,1,1,2,2,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,3,2,1],
+            [1,3,2,1,2,4,2,1,2,2,1,2,4,2,1,2,2,2,1],
+            [1,2,2,2,2,2,2,2,2,6,2,2,2,2,2,2,2,3,1],
+            [1,2,2,1,2,1,2,1,2,2,1,2,1,2,1,2,2,2,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,2,1,1,2,1,1,2,1,1,2,1,1,2,2,1],
+            [1,3,2,2,6,2,2,3,2,2,2,2,2,4,2,2,2,3,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ]
+    }
+];
+
+/**
+ * GAME STATE
+ */
+let state = {
+    playerName: '',
+    playerClass: '',
+    status: 'menu', // menu, playing, paused, quiz, gameover, complete
+    level: 1,
+    score: 0,
+    lives: GAME_CONFIG.startLives,
+    coinsCollected: 0,
+    targetCoins: 0,
+    quizStats: { correct: 0, wrong: 0 },
+    keys: { w:false, a:false, s:false, d:false, up:false, down:false, left:false, right:false }
+};
+
+/**
+ * THREE.JS SETUP
+ */
+let scene, camera, renderer, gameGroup, controls;
+let playerMesh, enemies = [], coins = [], quizBoxes = [], walls = [];
+let clock = new THREE.Clock();
+let animationId;
+
+// Basic Audio Synth (Web Audio API)
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playSound(type) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    if (type === 'coin') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+    } else if (type === 'correct') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(600, audioCtx.currentTime + 0.1);
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime + 0.2);
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+    } else if (type === 'wrong') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(150, audioCtx.currentTime + 0.3);
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+    } else if (type === 'hit') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.2);
+        gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+    }
+}
+
+function initThree() {
+    const container = document.getElementById('game-container');
+    
+    // Scene
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(GAME_CONFIG.colors.bgVoid);
+    scene.fog = new THREE.Fog(GAME_CONFIG.colors.bgVoid, 15, 50);
+
+    // Camera (Perspective untuk fleksibilitas view)
+    const aspect = window.innerWidth / window.innerHeight;
+    camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+    camera.position.set(15, 20, 20);
+
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.innerHTML = '';
+    container.appendChild(renderer.domElement);
+
+    // Controls (OrbitControls untuk fleksibilitas view)
+    if (typeof THREE.OrbitControls !== 'undefined') {
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2.1; // Batasi rotasi agar tidak melihat dari bawah lantai
+        controls.minDistance = 5;
+        controls.maxDistance = 50;
+    }
+
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(10, 20, 10);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 1024;
+    dirLight.shadow.mapSize.height = 1024;
+    dirLight.shadow.camera.left = -20;
+    dirLight.shadow.camera.right = 20;
+    dirLight.shadow.camera.top = 20;
+    dirLight.shadow.camera.bottom = -20;
+    scene.add(dirLight);
+
+    gameGroup = new THREE.Group();
+    scene.add(gameGroup);
+
+    // Resize handler
+    window.addEventListener('resize', onWindowResize, false);
+}
+
+function onWindowResize() {
+    if (!camera || !renderer) return;
+    const aspect = window.innerWidth / window.innerHeight;
+    
+    if (camera.isOrthographicCamera) {
+        const d = 10;
+        camera.left = -d * aspect;
+        camera.right = d * aspect;
+        camera.top = d;
+        camera.bottom = -d;
+    } else {
+        camera.aspect = aspect;
+    }
+    
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+/**
+ * OBJECT CREATORS
+ */
+const geoWall = new THREE.BoxGeometry(1, 1, 1);
+
+function createWall(x, z, materials) {
+    const mesh = new THREE.Mesh(geoWall, materials);
+    mesh.position.set(x, 0.5, z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    gameGroup.add(mesh);
+    // Bounding box for collision (slightly smaller to prevent snagging)
+    const box = new THREE.Box3().setFromObject(mesh);
+    box.expandByScalar(-0.05); 
+    walls.push({ mesh, box });
+}
+
+function createCoin(x, z) {
+    const geo = new THREE.TorusGeometry(0.2, 0.05, 8, 16);
+    const mat = new THREE.MeshStandardMaterial({ color: GAME_CONFIG.colors.coin, metalness: 0.8, roughness: 0.2 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, 0.5, z);
+    mesh.rotation.x = Math.PI / 2;
+    mesh.castShadow = true;
+    gameGroup.add(mesh);
+    coins.push({ mesh, isCollected: false });
+}
+
+function createQuizBox(x, z) {
+    const geo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+    const mat = new THREE.MeshStandardMaterial({ color: GAME_CONFIG.colors.qBox, emissive: 0x880044 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, 0.5, z);
+    mesh.castShadow = true;
+    
+    // Simple "?" mark using a smaller white box floating inside
+    const qGeo = new THREE.BoxGeometry(0.2, 0.8, 0.2);
+    const qMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const qMesh = new THREE.Mesh(qGeo, qMat);
+    mesh.add(qMesh);
+
+    gameGroup.add(mesh);
+    quizBoxes.push({ mesh, isAnswered: false, phase: Math.random() * Math.PI });
+}
+
+let playerTop, playerBottom;
+
+function createPlayer(x, z) {
+    playerMesh = new THREE.Group();
+    playerMesh.position.set(x, 0.5, z);
+    
+    const mat = new THREE.MeshStandardMaterial({ color: GAME_CONFIG.colors.player, roughness: 0.4, side: THREE.DoubleSide });
+    
+    // Mulut atas Pac-Man
+    const topGeo = new THREE.SphereGeometry(0.35, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+    playerTop = new THREE.Mesh(topGeo, mat);
+    playerTop.castShadow = true;
+    
+    // Mulut bawah Pac-Man
+    const bottomGeo = new THREE.SphereGeometry(0.35, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+    playerBottom = new THREE.Mesh(bottomGeo, mat);
+    playerBottom.castShadow = true;
+    
+    // Mata
+    const eyeGeo = new THREE.SphereGeometry(0.05, 16, 16);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+    eyeR.position.set(0.15, 0.15, 0.28);
+    const eyeL = eyeR.clone();
+    eyeL.position.set(-0.15, 0.15, 0.28);
+    
+    // Gabungkan mata ke kepala atas agar ikut bergerak saat buka mulut
+    playerTop.add(eyeR);
+    playerTop.add(eyeL);
+
+    playerMesh.add(playerTop);
+    playerMesh.add(playerBottom);
+    
+    gameGroup.add(playerMesh);
+}
+
+function createEnemy(x, z, typeCode) {
+    let color = GAME_CONFIG.colors.enemy1;
+    if (typeCode === 6) color = GAME_CONFIG.colors.enemy2;
+    // can add more logic for different enemy behaviors based on typeCode
+
+    const geo = new THREE.SphereGeometry(0.35, 16, 16);
+    const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.5 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, 0.5, z);
+    mesh.castShadow = true;
+
+    // Enemy Eyes (angry)
+    const eyeGeo = new THREE.BoxGeometry(0.1, 0.05, 0.1);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const eye1 = new THREE.Mesh(eyeGeo, eyeMat);
+    eye1.position.set(0.15, 0.15, 0.28);
+    eye1.rotation.z = -0.3;
+    const eye2 = eye1.clone();
+    eye2.position.set(-0.15, 0.15, 0.28);
+    eye2.rotation.z = 0.3;
+    mesh.add(eye1); mesh.add(eye2);
+
+    gameGroup.add(mesh);
+    enemies.push({
+        mesh: mesh,
+        dir: new THREE.Vector3(1, 0, 0), // Initial direction
+        speed: GAME_CONFIG.enemySpeed,
+        startX: x,
+        startZ: z
+    });
+}
+
+let particles = [];
+
+function createEatEffect(x, z) {
+    const geo = new THREE.RingGeometry(0.1, 0.3, 16);
+    const mat = new THREE.MeshBasicMaterial({ color: GAME_CONFIG.colors.coin, transparent: true, opacity: 1, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, 0.5, z);
+    mesh.rotation.x = -Math.PI / 2;
+    gameGroup.add(mesh);
+    
+    particles.push({
+        mesh: mesh,
+        scale: 1,
+        life: 1.0
+    });
+}
+
+function updateParticles(delta) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.life -= delta * 3;
+        p.scale += delta * 4;
+        p.mesh.scale.set(p.scale, p.scale, p.scale);
+        p.mesh.material.opacity = p.life;
+        if (p.life <= 0) {
+            gameGroup.remove(p.mesh);
+            p.mesh.geometry.dispose();
+            p.mesh.material.dispose();
+            particles.splice(i, 1);
+        }
+    }
+}
+
+function buildLevel(levelIndex) {
+    // Clear old data
+    while(gameGroup.children.length > 0) { 
+        gameGroup.remove(gameGroup.children[0]); 
+    }
+    walls = []; coins = []; quizBoxes = []; enemies = []; particles = [];
+    state.coinsCollected = 0;
+
+    const levelData = LEVELS[levelIndex - 1];
+    const map = levelData.map;
+    state.targetCoins = 0;
+
+    // Pilih tema secara acak dari 10 tema yang ada
+    const theme = GAME_THEMES[Math.floor(Math.random() * GAME_THEMES.length)];
+
+    // Persiapkan material dinding sesuai tema
+    const matWallTop = new THREE.MeshStandardMaterial({ color: theme.wallTop, roughness: 0.7 });
+    const matWallSide = new THREE.MeshStandardMaterial({ color: theme.wallSide, roughness: 0.9 });
+    const levelWallMaterials = [matWallSide, matWallSide, matWallTop, matWallSide, matWallSide, matWallSide];
+
+    // Floor plane dengan warna tema
+    const floorGeo = new THREE.PlaneGeometry(map[0].length, map.length);
+    const floorMat = new THREE.MeshStandardMaterial({ color: theme.floor, roughness: 0.9, metalness: 0.0 });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set((map[0].length - 1) / 2, 0, (map.length - 1) / 2);
+    floor.receiveShadow = true;
+    gameGroup.add(floor);
+
+    // Grid offset
+    let playerStartX = 1, playerStartZ = 1;
+
+    for (let z = 0; z < map.length; z++) {
+        for (let x = 0; x < map[z].length; x++) {
+            const cell = map[z][x];
+            if (cell === 1) {
+                createWall(x, z, levelWallMaterials);
+            } else if (cell === 2) {
+                createCoin(x, z);
+                state.targetCoins++;
+            } else if (cell === 3) {
+                createQuizBox(x, z);
+            } else if (cell === 4 || cell === 6) {
+                createEnemy(x, z, cell);
+            } else if (cell === 5) {
+                playerStartX = x;
+                playerStartZ = z;
+            }
+        }
+    }
+
+    createPlayer(playerStartX, playerStartZ);
+    
+    // Center camera on map
+    const centerX = (map[0].length - 1) / 2;
+    const centerZ = (map.length - 1) / 2;
+    camera.position.set(centerX, 20, centerZ + 15);
+    camera.lookAt(centerX, 0, centerZ);
+    
+    if (controls) {
+        controls.target.set(centerX, 0, centerZ);
+        controls.update();
+    }
+
+    updateHUD();
+}
+
+/**
+ * GAME LOGIC & CONTROLS
+ */
+function handleKeyDown(e) {
+    if (state.status !== 'playing') return;
+    const key = e.key.toLowerCase();
+    if (['w', 'arrowup'].includes(key)) state.keys.up = true;
+    if (['s', 'arrowdown'].includes(key)) state.keys.down = true;
+    if (['a', 'arrowleft'].includes(key)) state.keys.left = true;
+    if (['d', 'arrowright'].includes(key)) state.keys.right = true;
+}
+
+function handleKeyUp(e) {
+    const key = e.key.toLowerCase();
+    if (['w', 'arrowup'].includes(key)) state.keys.up = false;
+    if (['s', 'arrowdown'].includes(key)) state.keys.down = false;
+    if (['a', 'arrowleft'].includes(key)) state.keys.left = false;
+    if (['d', 'arrowright'].includes(key)) state.keys.right = false;
+}
+
+// D-Pad Logic for PID/Touchscreen
+function setupDPad() {
+    const bindBtn = (id, keyProp) => {
+        const btn = document.getElementById(id);
+        const press = (e) => { e.preventDefault(); e.stopPropagation(); state.keys[keyProp] = true; };
+        const release = (e) => { e.preventDefault(); e.stopPropagation(); state.keys[keyProp] = false; };
+        
+        btn.addEventListener('touchstart', press, {passive: false});
+        btn.addEventListener('touchend', release, {passive: false});
+        btn.addEventListener('mousedown', press);
+        btn.addEventListener('mouseup', release);
+        btn.addEventListener('mouseleave', release);
+    };
+
+    bindBtn('btn-up', 'up');
+    bindBtn('btn-down', 'down');
+    bindBtn('btn-left', 'left');
+    bindBtn('btn-right', 'right');
+}
+
+function checkCollision(position, radius) {
+    const pBox = new THREE.Box3().setFromCenterAndSize(position, new THREE.Vector3(radius*2, radius*2, radius*2));
+    for (let i = 0; i < walls.length; i++) {
+        if (pBox.intersectsBox(walls[i].box)) return true;
+    }
+    return false;
+}
+
+function updatePlayer(elapsedTime) {
+    let dx = 0, dz = 0;
+    
+    // Check state.keys (dari Keyboard maupun D-Pad Layar Sentuh)
+    if (state.keys.up) dz -= GAME_CONFIG.playerSpeed;
+    if (state.keys.down) dz += GAME_CONFIG.playerSpeed;
+    if (state.keys.left) dx -= GAME_CONFIG.playerSpeed;
+    if (state.keys.right) dx += GAME_CONFIG.playerSpeed;
+
+    let isMoving = (dx !== 0 || dz !== 0);
+
+    if (isMoving) {
+        // Rotate player mesh to face direction (smooth)
+        const angle = Math.atan2(dx, dz);
+        playerMesh.rotation.y = angle;
+
+        // Animasi mulut Pac-Man membuka dan menutup
+        const mouthAngle = Math.abs(Math.sin(elapsedTime * 15)) * 0.5;
+        playerTop.rotation.x = -mouthAngle;
+        playerBottom.rotation.x = mouthAngle;
+
+        // Move X (Slide on wall logic)
+        const nextX = playerMesh.position.clone();
+        nextX.x += dx;
+        if (!checkCollision(nextX, 0.3)) {
+            playerMesh.position.x = nextX.x;
+        }
+
+        // Move Z
+        const nextZ = playerMesh.position.clone();
+        nextZ.z += dz;
+        if (!checkCollision(nextZ, 0.3)) {
+            playerMesh.position.z = nextZ.z;
+        }
+    } else {
+        // Tutup mulut jika tidak bergerak
+        playerTop.rotation.x = 0;
+        playerBottom.rotation.x = 0;
+    }
+}
+
+function updateEnemies() {
+    const directions = [
+        new THREE.Vector3(1,0,0), new THREE.Vector3(-1,0,0),
+        new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,-1)
+    ];
+
+    enemies.forEach(enemy => {
+        const nextPos = enemy.mesh.position.clone().add(enemy.dir.clone().multiplyScalar(enemy.speed));
+        
+        // Face movement direction
+        enemy.mesh.rotation.y = Math.atan2(enemy.dir.x, enemy.dir.z);
+
+        if (checkCollision(nextPos, 0.3)) {
+            // Hit wall, choose new random valid direction
+            let validDirs = [];
+            directions.forEach(d => {
+                const testPos = enemy.mesh.position.clone().add(d.clone().multiplyScalar(0.5)); // Check ahead
+                if (!checkCollision(testPos, 0.3)) validDirs.push(d);
+            });
+            if (validDirs.length > 0) {
+                // Avoid going exactly backwards if there are other options
+                const notBackwards = validDirs.filter(d => !(d.x === -enemy.dir.x && d.z === -enemy.dir.z));
+                if (notBackwards.length > 0 && Math.random() > 0.2) {
+                    enemy.dir = notBackwards[Math.floor(Math.random() * notBackwards.length)];
+                } else {
+                    enemy.dir = validDirs[Math.floor(Math.random() * validDirs.length)];
+                }
+            }
+        } else {
+            enemy.mesh.position.copy(nextPos);
+            
+            // Intersection logic: sometimes change direction at intersections
+            if (Math.abs(enemy.mesh.position.x % 1) < 0.1 && Math.abs(enemy.mesh.position.z % 1) < 0.1) {
+                if(Math.random() < 0.05) { // 5% chance to change mind at grid center
+                     let validDirs = [];
+                    directions.forEach(d => {
+                        const testPos = enemy.mesh.position.clone().add(d.clone().multiplyScalar(0.5));
+                        if (!checkCollision(testPos, 0.3)) validDirs.push(d);
+                    });
+                    if (validDirs.length > 0) enemy.dir = validDirs[Math.floor(Math.random() * validDirs.length)];
+                }
+            }
+        }
+
+        // Check collision with player
+        const distToPlayer = playerMesh.position.distanceTo(enemy.mesh.position);
+        if (distToPlayer < 0.6) {
+            handlePlayerHit();
+        }
+    });
+}
+
+function handlePlayerHit() {
+    playSound('hit');
+    state.lives--;
+    updateHUD();
+    
+    if (state.lives <= 0) {
+        gameOver();
+    } else {
+        // Reset player to start position (approximate from level design)
+        // Find cell '5' in current map
+        const map = LEVELS[state.level - 1].map;
+        for (let z = 0; z < map.length; z++) {
+            for (let x = 0; x < map[z].length; x++) {
+                if (map[z][x] === 5) {
+                    playerMesh.position.set(x, 0.5, z);
+                    return;
+                }
+            }
+        }
+    }
+}
+
+function updateInteractions(time) {
+    // Coins
+    for (let i = coins.length - 1; i >= 0; i--) {
+        const coin = coins[i];
+        if (coin.isCollected) continue;
+        
+        coin.mesh.rotation.z += 0.05; // Spin
+        
+        if (playerMesh.position.distanceTo(coin.mesh.position) < 0.6) {
+            playSound('coin');
+            coin.isCollected = true;
+            
+            // Efek partikel makan koin
+            createEatEffect(coin.mesh.position.x, coin.mesh.position.z);
+            
+            gameGroup.remove(coin.mesh);
+            state.score += GAME_CONFIG.coinScore;
+            state.coinsCollected++;
+            updateHUD();
+            
+            if (state.coinsCollected >= state.targetCoins) {
+                checkLevelComplete();
+            }
+        }
+    }
+
+    // Quiz Boxes
+    for (let i = quizBoxes.length - 1; i >= 0; i--) {
+        const box = quizBoxes[i];
+        if (box.isAnswered) continue;
+        
+        // Float animation
+        box.mesh.position.y = 0.5 + Math.sin(time * 3 + box.phase) * 0.1;
+        box.mesh.rotation.y += 0.02;
+
+        if (playerMesh.position.distanceTo(box.mesh.position) < 0.7) {
+            box.isAnswered = true;
+            // Visual change to indicate used box
+            box.mesh.material.color.setHex(0x555555);
+            box.mesh.children[0].material.color.setHex(0x333333);
+            box.mesh.position.y = 0.2;
+            triggerQuiz();
+        }
+    }
+}
+
+function updateHUD() {
+    document.getElementById('score-display').innerText = state.score;
+    document.getElementById('coin-display').innerText = `${state.coinsCollected}/${state.targetCoins}`;
+    document.getElementById('lives-display').innerText = state.lives;
+    document.getElementById('level-display').innerText = state.level;
+}
+
+/**
+ * GAME LOOP
+ */
+function animate() {
+    animationId = requestAnimationFrame(animate);
+    
+    if (controls) controls.update();
+    
+    if (state.status === 'playing') {
+        const delta = clock.getDelta();
+        const elapsedTime = clock.getElapsedTime();
+        
+        updatePlayer(elapsedTime);
+        updateEnemies();
+        updateInteractions(elapsedTime);
+        updateParticles(delta);
+    }
+
+    renderer.render(scene, camera);
+}
+
+/**
+ * SCREEN & FLOW MANAGEMENT
+ */
+function showScreen(screenId) {
+    document.querySelectorAll('.screen-overlay').forEach(el => el.classList.add('hidden'));
+    if(screenId) {
+        document.getElementById(screenId).classList.remove('hidden');
+    }
+    
+    if (screenId === 'screen-main' || screenId === 'result-screen' || screenId === 'screen-materi' || screenId === 'screen-petunjuk') {
+        document.getElementById('hud').classList.add('hidden');
+        document.getElementById('dpad-zone').classList.add('hidden');
+    } else {
+        document.getElementById('hud').classList.remove('hidden');
+        // Selalu tampilkan D-Pad untuk memastikan dukungan PID
+        document.getElementById('dpad-zone').classList.remove('hidden');
+    }
+}
+
+function startGame(level) {
+    // Validasi form Nama dan Kelas saat mulai level 1
+    if (level === 1) {
+        const inputNama = document.getElementById('input-nama').value.trim();
+        const inputKelas = document.getElementById('input-kelas').value.trim();
+        const errorMsg = document.getElementById('login-error');
+        
+        if (!inputNama || !inputKelas) {
+            errorMsg.classList.remove('hidden');
+            return;
+        }
+        errorMsg.classList.add('hidden');
+        
+        state.playerName = inputNama;
+        state.playerClass = inputKelas;
+        state.score = 0;
+        state.lives = GAME_CONFIG.startLives;
+        state.quizStats = { correct: 0, wrong: 0 };
+    }
+
+    if(!scene) initThree();
+    
+    state.level = level;
+    
+    buildLevel(state.level);
+    showScreen(null); // Hide all overlays, show game
+    state.status = 'playing';
+    
+    // UI Notification Start Level
+    const msg = document.getElementById('message-screen');
+    document.getElementById('message-title').innerText = LEVELS[state.level-1].title;
+    document.getElementById('message-desc').innerText = `Kumpulkan ${state.targetCoins} Koin!`;
+    document.getElementById('message-btn').classList.add('hidden');
+    msg.classList.remove('hidden');
+    
+    setTimeout(() => {
+        msg.classList.add('hidden');
+    }, 2000);
+
+    if(!animationId) animate();
+}
+
+function checkLevelComplete() {
+    state.status = 'complete';
+    state.score += GAME_CONFIG.levelBonus;
+    updateHUD();
+    playSound('correct'); // Replace with level up sound if available
+
+    setTimeout(() => {
+        const msg = document.getElementById('message-screen');
+        document.getElementById('message-title').innerText = "LEVEL SELESAI!";
+        document.getElementById('message-desc').innerText = "Bagus sekali! Kamu mengumpulkan semua koin.";
+        document.getElementById('message-btn').classList.remove('hidden');
+        msg.classList.remove('hidden');
+        document.getElementById('dpad-zone').classList.add('hidden');
+    }, 500);
+}
+
+function nextLevelAction() {
+    if (state.level < LEVELS.length) {
+        startGame(state.level + 1);
+    } else {
+        gameWin();
+    }
+}
+
+function gameOver() {
+    state.status = 'gameover';
+    showResult("GAME OVER", "Jangan menyerah, coba lagi!");
+}
+
+function gameWin() {
+    state.status = 'gameover';
+    showResult("SELAMAT!", "Kamu telah menyelesaikan semua misi!");
+}
+
+function exitGame() {
+    state.status = 'menu';
+    cleanupGame();
+    showScreen('screen-main');
+}
+
+function toggleFullScreen() {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+            console.log(`Gagal mengaktifkan mode layar penuh: ${err.message}`);
+        });
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    }
+}
+
+function showResult(title, message) {
+    showScreen('result-screen');
+    document.getElementById('result-title').innerText = title;
+    
+    // Tampilkan Nama dan Kelas
+    document.getElementById('result-name').innerText = `Nama: ${state.playerName}`;
+    document.getElementById('result-class').innerText = `Kelas: ${state.playerClass}`;
+    
+    document.getElementById('final-score').innerText = state.score;
+    document.getElementById('final-coins').innerText = state.coinsCollected;
+    document.getElementById('final-correct').innerText = state.quizStats.correct;
+    document.getElementById('final-wrong').innerText = state.quizStats.wrong;
+    document.getElementById('result-message').innerText = message;
+
+    // Calculate stars
+    let stars = "";
+    if (state.lives === 3) stars = "⭐ ⭐ ⭐";
+    else if (state.lives === 2) stars = "⭐ ⭐";
+    else stars = "⭐";
+    if (title === "GAME OVER") stars = "💀";
+    document.getElementById('stars-container').innerText = stars;
+}
+
+// Fungsi Screenshot
+function takeScreenshot() {
+    const btn = document.getElementById('btn-screenshot');
+    const scoreCard = document.getElementById('score-card');
+    
+    // Sembunyikan tombol saat mengambil gambar agar tidak ikut terfoto
+    btn.classList.add('hidden');
+    
+    html2canvas(scoreCard, {
+        backgroundColor: '#1E1B4B', // Samakan dengan background card
+        scale: 2 // Resolusi tinggi
+    }).then(canvas => {
+        const imgData = canvas.toDataURL('image/jpeg', 0.9);
+        const link = document.createElement('a');
+        link.download = `Nilai_Sound_Hunter_${state.playerName}_${state.playerClass}.jpg`;
+        link.href = imgData;
+        link.click();
+        
+        // Tampilkan kembali tombol
+        btn.classList.remove('hidden');
+        
+        // Tampilkan pesan sukses
+        const msg = document.getElementById('message-screen');
+        document.getElementById('message-title').innerText = "BERHASIL DISIMPAN!";
+        document.getElementById('message-desc').innerText = "Gambar nilai sudah diunduh ke perangkat Anda. Silakan kirimkan gambar tersebut via WhatsApp kepada guru.";
+        document.getElementById('message-btn').innerText = "TUTUP";
+        document.getElementById('message-btn').classList.remove('hidden');
+        document.getElementById('message-btn').onclick = () => { 
+            msg.classList.add('hidden'); 
+            // Reset aksi tombol agar tidak mengganggu alur level
+            document.getElementById('message-btn').onclick = nextLevelAction;
+        };
+        msg.classList.remove('hidden');
+    });
+}
+
+function cleanupGame() {
+    if(animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+    }
+    if (gameGroup) {
+        while(gameGroup.children.length > 0) { gameGroup.remove(gameGroup.children[0]); }
+    }
+}
+
+/**
+ * QUIZ SYSTEM
+ */
+let currentQuizIndex = -1;
+let currentQuestionObj = null;
+
+function triggerQuiz() {
+    state.status = 'quiz';
+    
+    // Pick random question
+    const availableQ = QUIZ_POOL.filter(q => !q.used);
+    if(availableQ.length === 0) {
+        // Reset pool if all used
+        QUIZ_POOL.forEach(q => q.used = false);
+    }
+    
+    let poolToUse = availableQ.length > 0 ? availableQ : QUIZ_POOL;
+    const rIdx = Math.floor(Math.random() * poolToUse.length);
+    currentQuestionObj = poolToUse[rIdx];
+    currentQuestionObj.used = true;
+
+    // UI Setup
+    document.getElementById('quiz-question').innerText = currentQuestionObj.q;
+    const optionsContainer = document.getElementById('quiz-options');
+    optionsContainer.innerHTML = '';
+    
+    // Create options with random order
+    let options = currentQuestionObj.o.map((text, index) => ({ text, isCorrect: index === currentQuestionObj.a }));
+    options = options.sort(() => Math.random() - 0.5);
+
+    options.forEach((opt, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'quiz-option';
+        btn.innerHTML = `${String.fromCharCode(65 + idx)}. ${opt.text}`;
+        btn.onclick = () => handleAnswer(opt.isCorrect, btn);
+        optionsContainer.appendChild(btn);
+    });
+
+    document.getElementById('quiz-feedback').classList.add('hidden');
+    document.getElementById('quiz-continue-btn').classList.add('hidden');
+    
+    document.getElementById('dpad-zone').classList.add('hidden');
+    showScreen('quiz-modal');
+}
+
+function handleAnswer(isCorrect, btnElement) {
+    const feedbackEl = document.getElementById('quiz-feedback');
+    const optionsBtns = document.querySelectorAll('.quiz-option');
+    
+    // Disable all buttons
+    optionsBtns.forEach(b => b.style.pointerEvents = 'none');
+
+    if (isCorrect) {
+        playSound('correct');
+        btnElement.classList.add('correct');
+        feedbackEl.innerHTML = `✅ <b>HEBAT! Jawaban Benar!</b><br>${currentQuestionObj.exp}`;
+        feedbackEl.className = 'rounded-lg p-3 mb-4 text-sm bg-green-100 text-green-800 border-l-4 border-green-500';
+        state.score += GAME_CONFIG.quizCorrectScore;
+        state.quizStats.correct++;
+    } else {
+        playSound('wrong');
+        btnElement.classList.add('wrong');
+        // Highlight correct answer
+        optionsBtns.forEach(b => {
+            if(b.innerText.includes(currentQuestionObj.o[currentQuestionObj.a])) {
+                b.classList.add('correct');
+            }
+        });
+        feedbackEl.innerHTML = `❌ <b>Kuang Tepat!</b><br>${currentQuestionObj.exp}`;
+        feedbackEl.className = 'rounded-lg p-3 mb-4 text-sm bg-red-100 text-red-800 border-l-4 border-red-500';
+        state.quizStats.wrong++;
+    }
+    
+    feedbackEl.classList.remove('hidden');
+    document.getElementById('quiz-continue-btn').classList.remove('hidden');
+    updateHUD();
+}
+
+function closeQuiz() {
+    showScreen(null);
+    state.status = 'playing';
+}
+
+// Event Listeners
+window.addEventListener('keydown', handleKeyDown);
+window.addEventListener('keyup', handleKeyUp);
+
+// Init
+window.onload = () => {
+    setupDPad(); // Inisialisasi event tombol D-Pad
+    // Tampilkan menu awal
+    showScreen('screen-main');
+    // Siapkan context audio pada interaksi pertama pengguna untuk mematuhi kebijakan browser
+    document.body.addEventListener('click', () => {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+    }, {once: true});
+};
+
+</script>
+</body>
+</html>
